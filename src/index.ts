@@ -8,32 +8,43 @@ interface Credentials {
   secretAccessKey: string;
 }
 
+interface SecretsOptions {
+  logger?: any;
+  region?: string;
+  credentials?: Credentials;
+}
+
 export class Secrets {
   private static instance: Secrets;
   private secretsCache: { [key: string]: string | undefined } = {};
   private initialized = false;
   private client: SecretsManagerClient;
   private secretId: string;
+  private logger: any;
 
-  private constructor(secretId: string) {
+  private constructor(
+    secretId: string,
+    { logger, credentials, region }: SecretsOptions,
+  ) {
     if (Secrets.instance)
       return Secrets.instance;
     
+    this.logger = logger || console;
     this.secretId = secretId;
-    this.client = new SecretsManagerClient({ region: 'us-east-1' });
+    this.setCredentials({ region, credentials });
     Secrets.instance = this;
   }
 
-  public static getInstance(secretId: string): Secrets {
+  public static getInstance(secretId: string, options: SecretsOptions): Secrets {
     if (!Secrets.instance) {
-      Secrets.instance = new Secrets(secretId);
+      Secrets.instance = new Secrets(secretId, options);
     }
     return Secrets.instance;
   }
 
-  public setCredentials(credentials: Credentials): void {
+  public setCredentials({ region, credentials }: { credentials: Credentials, region: string }): void {
     this.client = new SecretsManagerClient({
-      region: 'us-east-1',
+      region: region || process.env.AWS_REGION,
       credentials: {
         accessKeyId: credentials.accessKeyId,
         secretAccessKey: credentials.secretAccessKey,
@@ -54,7 +65,7 @@ export class Secrets {
       this.secretsCache = JSON.parse(response.SecretString || '{}');
       this.initialized = true;
     } catch (error) {
-      console.error('Failed to retrieve secrets', error);
+      this.logger.error('Failed to retrieve secrets', error);
       throw error;
     }
   }
